@@ -2,9 +2,7 @@
 import numpy as np
 from scipy.stats import norm
 import random as rnd
-import time
 import sympy
-import re
 from math import factorial
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -71,8 +69,8 @@ def dig_scrambled_faure(n,s,b,gens,rperms):
         array[i] = sum(perm_digs*base_powers)
     return array
 
-n = 100
-s = 5
+n = 10
+s = 10000
 b = next_prime(s)
 
 gens, rperms = gens_rperms(s,b)
@@ -124,63 +122,95 @@ def beas_spri_moro(u):
         if y < 0:
             x = -x
     return x
-        
-#%%
-
-# def GBM(S,T,n,r,σ):
-#     Δt = T/n
-#     S_t = np.zeros(n)
-#     S_t[0] = S
-#     for i in range(1,n):
-#         u1 = rnd.random()
-#         u2 = rnd.random()
-#         Z1, Z2 = box_muller(u1, u2)
-#         S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
-#     return S_t
-
-# n = 10
-# sims = 10000
-# S = 50
-# T = 1
-# r = .1
-# σ = .3
-# K = 50
-# paths = np.zeros((sims,n))
-# for i in range(sims):
-#     paths[i] = GBM(S,T,n,r,σ)
-    
-# plt.plot(paths.T)
-
-# payoffs = paths[:,-1]-K
-# payoffs = np.maximum(payoffs,0)
-# approx_px = payoffs.mean()
-# print(approx_px)
 
 
 #%%
 
-def GBM(S,T,n,r,σ,method):
+def box_muller_GBM(S,T,n,r,σ,u):
     Δt = T/n
-    if method == 'box-muller':
-        S_t = np.zeros((2,n+1))
-        S_t[0] = S
-        S_t[1] = S
-        for i in range(1,n+1):
-            u1 = rnd.random()
-            u2 = rnd.random()
-            Z1, Z2 = box_muller(u1, u2)
-            S_t[0][i] = S_t[0][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
-            S_t[1][i] = S_t[1][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z2)
-    elif method == 'beasley-springer-moro':
-        S_t = np.zeros(n+1)
-        S_t[0] = S
-        for i in range(1,n+1):
-            u = rnd.random()
-            Z = beas_spri_moro(u)
-            S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z)
+    S_t = np.zeros((2,n+1))
+    S_t[0] = S
+    S_t[1] = S
+    for i in range(1,n+1):
+        u1 = u[0][i-1]
+        u2 = u[1][i-1]
+        Z1, Z2 = box_muller(u1, u2)
+        S_t[0][i] = S_t[0][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
+        S_t[1][i] = S_t[1][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z2)
+    return S_t
+
+def bsm_GBM(S,T,n,r,σ,u):
+    Δt = T/n
+    S_t = np.zeros(n+1)
+    S_t[0] = S
+    for i in range(1,n+1):
+        Z = beas_spri_moro(u[i-1])
+        S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z)
     return S_t
 
 #%%
+
+
+def monte_carlo(S,T,n,r,σ,sims,method,faure):
+    paths = np.zeros((sims,n+1))
+    if method == 'box-muller':
+        u = np.zeros((sims,n))
+        if faure == False:
+            for i in range(sims):
+                for j in range(n):
+                    u[i][j] = rnd.random()
+        else:
+            s = 5
+            for i in np.arange(0,sims,s): 
+                b = next_prime(s)
+                gens, rperms = gens_rperms(s,b)
+                dig_scram_faure_array = np.zeros((n,b))
+                for i in range(n):
+                    dig_scram_faure_array[j] = dig_scrambled_faure(j+1,s,b,gens,rperms)
+                u = dig_scram_faure_array[:,:2].T
+        
+        for i in tqdm(np.arange(0,sims,2)):
+            if faure == True:
+                s = 5
+                b = next_prime(s)
+                gens, rperms = gens_rperms(s,b)
+                dig_scram_faure_array = np.zeros((n,b))
+                for i in range(n):
+                    dig_scram_faure_array[i] = dig_scrambled_faure(i+1,s,b,gens,rperms)
+                u = dig_scram_faure_array[:,:2].T
+            else:
+                u = u_rnd[i:i+2]
+            paths[i:i+2] = box_muller_GBM(S,T,n,r,σ,u)
+    elif method == 'beasley-springer-moro':
+        if faure == False:
+            u_rnd = np.zeros((sims,n))
+            for i in range(sims):
+                for j in range(n):
+                    u_rnd[i][j] = rnd.random()
+        for i in tqdm(range(sims)):
+            if faure == True:
+                s = 5
+                b = next_prime(s)
+                gens, rperms = gens_rperms(s,b)
+                dig_scram_faure_array = np.zeros((n,b))
+                for i in range(n):
+                    dig_scram_faure_array[i] = dig_scrambled_faure(i+1,s,b,gens,rperms)
+                u = dig_scram_faure_array[:,np.random.randint(s)].T
+            else:
+                u = u_rnd[i]
+            paths[i] = bsm_GBM(S,T,n,r,σ,u)
+    payoffs = paths[:,-1]-K
+    payoffs = np.maximum(paths[:,-1]-K,0)
+    avg_payoff = payoffs.mean()
+    approx_px = np.exp(-r*T)*avg_payoff
+    return approx_px
+
+#%%
+
+num_monte_carlos = 40
+
+# for i in range(num_monte_carlos):
+
 n = 10
 sims = 10000
 S = 50
@@ -188,25 +218,10 @@ T = 1
 r = .1
 σ = .3
 K = 50
+method='beasley-springer-moro'
+faure=True
 
-paths = np.zeros((sims,n+1))
-for i in np.arange(0,sims,2):
-    paths[i:i+2] = GBM(S,T,n,r,σ,method='box-muller')
+# u = monte_carlo(S,T,n,r,σ,sims,method,faure)
+
+print(monte_carlo(S,T,n,r,σ,sims,method,faure))
     
-payoffs = paths[:,-1]-K
-payoffs = np.maximum(paths[:,-1]-K,0)
-avg_payoff = payoffs.mean()
-approx_px = np.exp(-r*T)*avg_payoff
-print(approx_px)
-
-#%%
-
-paths = np.zeros((sims,n+1))
-for i in range(sims):
-    paths[i] = GBM(S,T,n,r,σ,method='beasley-springer-moro')
-    
-payoffs = paths[:,-1]-K
-payoffs = np.maximum(paths[:,-1]-K,0)
-avg_payoff = payoffs.mean()
-approx_px = np.exp(-r*T)*avg_payoff
-print(approx_px)
