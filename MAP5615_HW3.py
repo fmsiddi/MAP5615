@@ -27,11 +27,11 @@ print(c)
 
 #%%
 
-primes = np.array(list(sympy.primerange(2,1000000)))
-
-#%%
-
 def next_prime(x):
+    if x > 100000:
+        print('ERROR: Must pick number less than or equal to {}'.format(x))
+        return
+    primes = np.array(list(sympy.primerange(2,100000)))
     return primes[primes <= x][-1]
 
 def log_b(b,x):
@@ -40,27 +40,48 @@ def log_b(b,x):
 def binomial(n,k):
     return factorial(n)/(factorial(k)*factorial(n-k))
 
+def gens_rperms(s,b):
+    maxi = 10000000
+    k = int(log_b(b,maxi)) + 1
+    gens = np.zeros((s,k,k))
+    for i in range(k):
+        gens[0][i][i] = 1
+    p = lambda a, i, j: np.mod(a**(j-i) * binomial(j-1, i-1), b)
+    for a in range(1,s):
+        for i in range(k):
+            for j in range(i,k):
+                gens[a][i][j] = p(a,i+1,j+1)
+    rperms = np.zeros((s,k,s))
+    for i in range(s):
+        for j in range(k):
+            rperms[i][j] = np.insert(np.random.permutation(np.arange(1,b)),0,0)
+    return gens, rperms
+
+def dig_scrambled_faure(n,s,b,gens,rperms):
+    array = np.zeros(s)
+    digs = np.flip(np.array(list(np.base_repr(n,b)),'int'))
+    size = len(digs)
+    base_powers = np.array([1/b**i for i in range(1,size+1)])
+    real_digs = np.zeros(size)
+    perm_digs = np.zeros(size)
+    for i in range(s):
+        real_digs = np.array(list(map(lambda x: np.mod(x,b), np.matmul(gens[i][:size,:size],digs))))
+        for j in range(size):
+            perm_digs[j] = rperms[i][j][int(real_digs[j])]
+        array[i] = sum(perm_digs*base_powers)
+    return array
+
+n = 100
 s = 5
 b = next_prime(s)
-maxi = 10000000
-k = int(log_b(b,maxi)) + 1
-print(k)
 
-#%%
+gens, rperms = gens_rperms(s,b)
 
-gens = np.zeros((s,k,k))
-for i in range(k):
-    gens[0][i][i] = 1
-p = lambda a, i, j: np.mod(a**(j-i) * binomial(j-1, i-1), b)
-for a in range(1,s):
-    for i in range(k):
-        for j in range(i,k):
-            gens[a][i][j] = p(a,i+1,j+1)
+dig_scram_faure_array = np.zeros((n,b))
+for i in range(n):
+    dig_scram_faure_array[i] = dig_scrambled_faure(i+1,s,b,gens,rperms)
 
-rperms = np.zeros((s,k,s))
-for i in range(s):
-    for j in range(k):
-        rperms[i][j] = np.insert(np.random.permutation(np.arange(1,b)),0,0)
+
 
 #%%
 
