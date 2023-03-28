@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.stats import norm
 import random as rnd
+import time
 import sympy
 import re
 from math import factorial
@@ -63,115 +64,128 @@ for i in range(s):
 
 #%%
 
-# def box_muller():
-#     R = np.sqrt(-2 * np.log(np.random.uniform()))
-#     θ = 2 * np.pi * np.random.uniform()
-#     X = R * np.cos(θ)
-#     Y = R * np.sin(θ)
-#     return X, Y
-
-def box_muller():
-    u1 = rnd.random()
-    u2 = rnd.random()
+def box_muller(u1, u2):
     R = np.sqrt(-2 * np.log(u1))
     θ = 2 * np.pi * u2
     X = R * np.cos(θ)
     Y = R * np.sin(θ)
     return X, Y
 
-#%%
-
-def GBM(S,T,n,r,σ):
-    Δt = T/n
-    S_t = np.zeros((2,n))
-    S_t[0] = S
-    S_t[1] = S
-    for i in range(1,n):
-        Z1, Z2 = box_muller()
-        S_t[0][i] = S_t[0][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
-        S_t[1][i] = S_t[1][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z2)
-    return S_t
-
-n = 10
-num = 10000
-S = 50
-T = 1
-r = .1
-σ = .3
-K = 50
-paths = np.zeros((num,n))
-for i in np.arange(0,num,2):
-    paths[i:i+2] = GBM(S,T,n,r,σ)
+def beas_spri_moro(u):
+    a0 =   2.50662823884
+    a1 = -18.61500062529
+    a2 =  41.39119773534
+    a3 = -25.44106049637
+    b0 =  -8.47351093090
+    b1 =  23.08336743743
+    b2 = -21.06224101826
+    b3 =   3.13082909833
+    c0 =    .3374754822726147
+    c1 =    .9761690190917186
+    c2 =    .1607979714918209
+    c3 =    .0276438810333863
+    c4 =    .0038405729373609
+    c5 =    .0003951896511919
+    c6 =    .0000321767881768
+    c7 =    .0000002888167364
+    c8 =    .0000003960315187
     
-# plt.plot(paths.T)
-# plt.plot(GBM(S,T,n,r,σ))
-# GBM(S,T,n,r,σ)
-
-avg_S = paths[:,-1].mean()
-approx_px = max(avg_S - K, 0)
+    y = u - .5
+    if abs(y) < .42:
+        r = y**2
+        x = y * (((a3*r + a2)*r + a1)*r + a0)/((((b3*r + b2)*r + b1)*r + b0)*r + 1)
+    else:
+        r = u
+        if y > 0:
+            r = 1 - u
+        r = np.log(-np.log(r))
+        x = c0 + r*(c1 + r*(c2 + r*(c3+ r*(c4 + r*(c5 + r*(c6 + r*(c7 + r*c8)))))))
+        if y < 0:
+            x = -x
+    return x
         
 #%%
 
-def GBM(S,T,n,r,σ):
+# def GBM(S,T,n,r,σ):
+#     Δt = T/n
+#     S_t = np.zeros(n)
+#     S_t[0] = S
+#     for i in range(1,n):
+#         u1 = rnd.random()
+#         u2 = rnd.random()
+#         Z1, Z2 = box_muller(u1, u2)
+#         S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
+#     return S_t
+
+# n = 10
+# sims = 10000
+# S = 50
+# T = 1
+# r = .1
+# σ = .3
+# K = 50
+# paths = np.zeros((sims,n))
+# for i in range(sims):
+#     paths[i] = GBM(S,T,n,r,σ)
+    
+# plt.plot(paths.T)
+
+# payoffs = paths[:,-1]-K
+# payoffs = np.maximum(payoffs,0)
+# approx_px = payoffs.mean()
+# print(approx_px)
+
+
+#%%
+
+def GBM(S,T,n,r,σ,method):
     Δt = T/n
-    S_t = np.zeros(n)
-    S_t[0] = S
-    for i in range(1,n):
-        Z1, Z2 = box_muller()
-        S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
+    if method == 'box-muller':
+        S_t = np.zeros((2,n+1))
+        S_t[0] = S
+        S_t[1] = S
+        for i in range(1,n+1):
+            u1 = rnd.random()
+            u2 = rnd.random()
+            Z1, Z2 = box_muller(u1, u2)
+            S_t[0][i] = S_t[0][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z1)
+            S_t[1][i] = S_t[1][i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z2)
+    elif method == 'beasley-springer-moro':
+        S_t = np.zeros(n+1)
+        S_t[0] = S
+        for i in range(1,n+1):
+            u = rnd.random()
+            Z = beas_spri_moro(u)
+            S_t[i] = S_t[i-1] * np.exp((r - .5*σ**2)*Δt + σ*np.sqrt(Δt)*Z)
     return S_t
 
+#%%
 n = 10
-num = 10000
+sims = 10000
 S = 50
 T = 1
 r = .1
 σ = .3
 K = 50
-paths = np.zeros((num,n))
-for i in range(num):
-    paths[i] = GBM(S,T,n,r,σ)
-    
-# plt.plot(paths.T)
-# plt.plot(GBM(S,T,n,r,σ))
-# GBM(S,T,n,r,σ)
 
+paths = np.zeros((sims,n+1))
+for i in np.arange(0,sims,2):
+    paths[i:i+2] = GBM(S,T,n,r,σ,method='box-muller')
+    
 payoffs = paths[:,-1]-K
-payoffs = np.maximum(payoffs,0)
-approx_px = payoffs.mean()
+payoffs = np.maximum(paths[:,-1]-K,0)
+avg_payoff = payoffs.mean()
+approx_px = np.exp(-r*T)*avg_payoff
 print(approx_px)
 
 #%%
 
-# n = 50000
-# test = np.zeros(2*n)
-# for i in np.arange(0,n,2):
-#     Z1, Z2 = box_muller()
-#     test[i] = Z1
-#     test[i+1] = Z2
+paths = np.zeros((sims,n+1))
+for i in range(sims):
+    paths[i] = GBM(S,T,n,r,σ,method='beasley-springer-moro')
     
-n = 100000
-test = np.zeros(n)
-for i in range(n):
-    Z1, Z2 = box_muller()
-    test[i] = Z2
-
-plt.hist(test,bins=50)
-
-
-
-#%%
-
-def vdc(n,b):
-    digs = list(np.base_repr(n,b))
-    len_digs = len(digs)
-    sum = 0
-    for i in range(len_digs):
-        sum += int(digs[i])/b**(len_digs-i)
-    return sum
-
-def halton(n,s):
-    return [vdc(n,i) for i in primes[:s]]
-
-
-
+payoffs = paths[:,-1]-K
+payoffs = np.maximum(paths[:,-1]-K,0)
+avg_payoff = payoffs.mean()
+approx_px = np.exp(-r*T)*avg_payoff
+print(approx_px)
