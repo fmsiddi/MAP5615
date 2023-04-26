@@ -97,6 +97,8 @@ def LSM_put(S,K,T,r,σ,M,N):
     px = px/N
     return px
 
+#%%
+
 S = 36
 K = 40
 T = 1
@@ -114,6 +116,7 @@ a1 = (r - .5*σ**2)*Δt # constant calculated outside of loop to reduce flops re
 a2 = σ*np.sqrt(Δt) # constant calculated outside of loop to reduce flops required
 for k in range(M):
     S_t[:,k+1] = S_t[:,k] * np.exp(a1 + a2*Z[:,k])
+#%%
 
 cf = np.zeros(S_t.shape)
 cf[:,-1] = np.where(K-S_t[:,-1]<0,0,K-S_t[:,-1])
@@ -143,3 +146,40 @@ px = px/N
 print(px)
 
 # S_t = LSM_put(S,K,T,r,σ,M,N)
+
+#%%
+S = 36
+K = 40
+T = 1
+r = .06
+σ = .2
+m = 50
+M = int(m*T)
+N = 100000
+Δt = T/M
+discount_factor = np.exp(-r * Δt)
+poly_degree = 5
+
+Z = rnd.normal(size=(N,M))
+S_t = np.zeros((N,M+1)) # create matrix for all paths
+S_t[:,0] = S # intitialize S_0 for all paths
+a1 = (r - .5*σ**2)*Δt # constant calculated outside of loop to reduce flops required
+a2 = σ*np.sqrt(Δt) # constant calculated outside of loop to reduce flops required
+for k in range(M):
+    S_t[:,k+1] = S_t[:,k] * np.exp(a1 + a2*Z[:,k])
+    
+payoff = np.maximum(K - S_t, np.zeros_like(S_t))
+value = np.zeros_like(payoff)
+value[:, -1] = payoff[:, -1]
+
+for t in tqdm(range(M-1 , 0 , -1)):
+    regression = np.polyfit(S_t[:, t], value[:, t + 1]*discount_factor,poly_degree)
+    continuation_value = np.polyval(regression, S_t[:, t])
+    value[:, t] = np.where(
+        payoff[:, t] > continuation_value,
+        payoff[:, t],
+        value[:, t + 1] * discount_factor
+    )
+option_premium = np.mean(value[:, 1] * discount_factor)
+print(option_premium)
+
